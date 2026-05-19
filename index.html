@@ -147,30 +147,32 @@ const K={PAT:"fg_pat",GIST:"fg_gist",LOCAL:"fg_solved",FILE:"faang_tracker.json"
 let solved=new Set(), PAT="", GIST="", timer=null;
 let openP={}, openS={};
 
-// ── GitHub API fetch — Safari-safe ────────────────────────────────
-// Key fixes for Safari/iOS:
-// 1. Use "Bearer" auth (newer standard, works better on Safari)
-// 2. Explicit mode:"cors", credentials:"omit"
-// 3. Minimal headers — Safari blocks custom headers on CORS preflight
+// ── GitHub API fetch — Safari CORS fix ───────────────────────────
+// Authorization header triggers CORS preflight which Safari blocks.
+// Solution: Basic auth using btoa("username:token") — treated as a
+// "simple" CORS request, no preflight needed.
 async function ghFetch(url, pat, method, body){
   try {
-    const headers = {
-      "Authorization": "Bearer " + pat,
-      "Accept": "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28"
-    };
-    const opts = {
+    // Basic auth: any username works, token is the password
+    var creds = btoa("x:" + pat);
+    var opts = {
       method: method || "GET",
-      headers: headers,
       mode: "cors",
-      credentials: "omit"
+      credentials: "omit",
+      headers: {
+        "Authorization": "Basic " + creds,
+        "Accept": "application/json"
+      }
     };
-    if(body) opts.body = JSON.stringify(body);
-    const r = await fetch(url, opts);
-    dbg("fetch "+url+" → "+r.status);
+    if(body){
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    var r = await fetch(url, opts);
+    dbg("fetch " + (method||"GET") + " → " + r.status);
     return r;
   } catch(e) {
-    dbg("fetch error: "+e.message);
+    dbg("fetch error: " + e.message);
     return {ok:false, status:0, _err:e.message};
   }
 }
